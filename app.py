@@ -1,13 +1,11 @@
 from flask import Flask, request, Response
-import cloudscraper
-import time
-import random
+import os
+import requests
+import json
 
 app = Flask(__name__)
 
-scraper = cloudscraper.create_scraper(
-    browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False}
-)
+BROWSERLESS_API_KEY = os.environ.get('BROWSERLESS_API_KEY')
 
 @app.route('/fetch')
 def fetch():
@@ -17,10 +15,25 @@ def fetch():
     if 'ffecompet.ffe.com' not in url:
         return {'error': 'Only ffecompet.ffe.com URLs allowed'}, 403
     try:
-        time.sleep(random.uniform(0.3, 1.0))
-        resp = scraper.get(url, timeout=20)
-        return Response(resp.text, status=resp.status_code, mimetype='text/html',
-            headers={'Access-Control-Allow-Origin': '*'})
+        # Utilise Browserless pour lancer un vrai Chrome
+        response = requests.post(
+            f'https://production-sfo.browserless.io/content?token={BROWSERLESS_API_KEY}',
+            headers={'Content-Type': 'application/json'},
+            json={
+                'url': url,
+                'waitForSelector': 'table',
+                'rejectResourceTypes': ['image', 'font', 'stylesheet'],
+            },
+            timeout=30
+        )
+        if response.status_code != 200:
+            return {'error': f'Browserless error: {response.status_code}'}, response.status_code
+        return Response(
+            response.text,
+            status=200,
+            mimetype='text/html',
+            headers={'Access-Control-Allow-Origin': '*'}
+        )
     except Exception as e:
         return {'error': str(e)}, 500
 

@@ -1,11 +1,8 @@
 from flask import Flask, request, Response
 import os
 import requests
-import json
 
 app = Flask(__name__)
-
-BROWSERLESS_API_KEY = os.environ.get('BROWSERLESS_API_KEY')
 
 @app.route('/fetch')
 def fetch():
@@ -14,20 +11,22 @@ def fetch():
         return {'error': 'Missing url parameter'}, 400
     if 'ffecompet.ffe.com' not in url:
         return {'error': 'Only ffecompet.ffe.com URLs allowed'}, 403
+    
+    api_key = os.environ.get('BROWSERLESS_API_KEY', '')
+    if not api_key:
+        return {'error': 'API key not configured'}, 500
+    
     try:
-        # Utilise Browserless pour lancer un vrai Chrome
         response = requests.post(
-            f'https://production-sfo.browserless.io/content?token={BROWSERLESS_API_KEY}',
+            f'https://production-sfo.browserless.io/content?token={api_key}',
             headers={'Content-Type': 'application/json'},
             json={
                 'url': url,
-                'waitForSelector': 'table',
+                'waitForTimeout': 3000,
                 'rejectResourceTypes': ['image', 'font', 'stylesheet'],
             },
             timeout=30
         )
-        if response.status_code != 200:
-            return {'error': f'Browserless error: {response.status_code}'}, response.status_code
         return Response(
             response.text,
             status=200,
@@ -39,7 +38,8 @@ def fetch():
 
 @app.route('/health')
 def health():
-    return {'status': 'ok'}
+    key = os.environ.get('BROWSERLESS_API_KEY', '')
+    return {'status': 'ok', 'key_configured': bool(key)}
 
 @app.route('/')
 def index():
